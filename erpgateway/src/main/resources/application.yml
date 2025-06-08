@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: erp-gateway
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      routes:
+        # GraphQL endpoint único
+        - id: graphql-endpoint
+          uri: lb://erp-loan
+          predicates:
+            - Path=/graphql/**
+          filters:
+            - RewritePath=/graphql/(?<segment>.*), /graphql/${segment}
+
+server:
+  port: 8080
+
+# Configuración de Eureka
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+    hostname: localhost
+
+# Configuración JWT
+jwt:
+  security:
+    key: YTQyZmQ5NGYxMWM4NzEyNjRhNTM4YmY5NzBjZDcyYzRiMmMzODBmY2ZiOGJmOTVkNzRmYzE1MTI0NGU1OGFkZTBkODVjMjFiNTlmOWRkMDc1YzM3MjgzODZiN2I5MzVlYTZiNzgyZGZlYTFiNDNhZDIzZjllZmVhMjdmYTUxZGI=
+
+# Logging
+logging:
+  level:
+    root: INFO
+    erpgateway.demo.filters: DEBUG
+    org.springframework.security: INFO
+    org.springframework.cloud.gateway: INFO
