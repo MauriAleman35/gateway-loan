@@ -6,13 +6,73 @@ spring:
   cloud:
     gateway:
       routes:
-        # GraphQL endpoint único
+        # GraphQL endpoint original (servicios internos con autenticación)
         - id: graphql-endpoint
           uri: lb://erp-loan
           predicates:
             - Path=/graphql/**
           filters:
             - RewritePath=/graphql/(?<segment>.*), /graphql/${segment}
+          metadata:
+            cors:
+              allowedOrigins: 'http://localhost:4200'
+              allowedMethods:
+                - GET
+                - POST
+              allowedHeaders: '*'
+              maxAge: 30
+
+        # API REST endpoints
+        - id: api-endpoints
+          uri: lb://erp-loan
+          predicates:
+            - Path=/api/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /api/${segment}
+          metadata:
+            cors:
+              allowedOrigins: 'http://localhost:4200'
+              allowedMethods:
+                - GET
+                - POST
+              allowedHeaders: '*'
+              maxAge: 30
+
+        # Servicio de usuarios
+        - id: ml-service
+          uri: lb://ml-service
+          predicates:
+            - Path=/ml/**
+          filters:
+            - RewritePath=/ml/(?<segment>.*), /${segment}
+          metadata:
+            cors:
+              allowedOrigins: 'http://localhost:4200'
+              allowedMethods:
+                - GET
+                - POST
+              allowedHeaders: '*'
+              maxAge: 30
+
+        # BI Service - Servicio externo con URL desplegada
+        - id: bi-kpi-service
+          uri: http://147.182.172.85:30001 # Corregido: quitamos "/graphql" de la URL base
+          predicates:
+            - Path=/bi/**
+          filters:
+            - StripPrefix=1
+            - RemoveRequestHeader=Authorization # Quitamos cualquier header de autenticación
+          metadata:
+            cors:
+              allowedOrigins:
+                - 'http://localhost:4200'
+                - '*'  # Permitimos cualquier origen para pruebas con Postman
+              allowedMethods:
+                - GET
+                - POST
+                - OPTIONS
+              allowedHeaders: '*'
+              maxAge: 30
 
 server:
   port: 8080
@@ -28,15 +88,17 @@ eureka:
     prefer-ip-address: true
     hostname: localhost
 
-# Configuración JWT
+# Configuración JWT para rutas que requieren autenticación
 jwt:
   security:
     key: YTQyZmQ5NGYxMWM4NzEyNjRhNTM4YmY5NzBjZDcyYzRiMmMzODBmY2ZiOGJmOTVkNzRmYzE1MTI0NGU1OGFkZTBkODVjMjFiNTlmOWRkMDc1YzM3MjgzODZiN2I5MzVlYTZiNzgyZGZlYTFiNDNhZDIzZjllZmVhMjdmYTUxZGI=
 
-# Logging
+# Logging mejorado para depuración
 logging:
   level:
     root: INFO
     erpgateway.demo.filters: DEBUG
     org.springframework.security: INFO
-    org.springframework.cloud.gateway: INFO
+    org.springframework.cloud.gateway: DEBUG  # Aumentado a DEBUG para ver más detalles de enrutamiento
+    org.springframework.web.server: DEBUG  # Para ver detalles de las solicitudes web
+    reactor.netty: INFO  # Para ver detalles de las conexiones

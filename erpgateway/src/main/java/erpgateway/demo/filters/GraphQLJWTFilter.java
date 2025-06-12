@@ -64,6 +64,12 @@ public class GraphQLJWTFilter implements GlobalFilter, Ordered {
         if (!path.contains("/graphql")) {
             return chain.filter(exchange);
         }
+        // Excluir solicitudes a la ruta BI externa
+        if (path.startsWith("/bi")) {
+            return chain.filter(exchange);
+        }
+        // Verificar si es una solicitud al servicio ML
+        boolean isMLRequest = path.contains("/ml/graphql");
 
         // Permitir OPTIONS para preflight CORS
         if (request.getMethod().equals(HttpMethod.OPTIONS)) {
@@ -71,7 +77,7 @@ public class GraphQLJWTFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        log.debug("Procesando solicitud GraphQL: {}", path);
+        log.debug("Procesando solicitud GraphQL: {} (ML Service: {})", path, isMLRequest);
 
         // Leer y analizar el cuerpo de la solicitud
         return DataBufferUtils.join(exchange.getRequest().getBody())
@@ -115,7 +121,23 @@ public class GraphQLJWTFilter implements GlobalFilter, Ordered {
 
                                 log.debug("JWT válido para el usuario: {}", claims.getSubject());
 
-                                // Pasar la solicitud con información de usuario
+                                // NUEVA LÓGICA: Si es una solicitud al servicio ML, verificar rol USER
+                                if (isMLRequest) {
+                                    // Obtener los roles del token
+                                    List<String> roles = claims.get("roles", List.class);
+
+                                    // Para ML solo requerimos ROLE_USER
+                                    if (roles != null && roles.contains("ROLE_USER")) {
+                                        log.debug("Usuario con ROLE_USER accediendo a ML service, permitido");
+                                        return rewriteRequest(exchange, chain, body);
+                                    } else {
+                                        log.warn("Acceso denegado a ML service: se requiere ROLE_USER");
+                                        exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                                        return exchange.getResponse().setComplete();
+                                    }
+                                }
+
+                                // Para otras solicitudes, continuar normalmente
                                 return rewriteRequest(exchange, chain, body);
 
                             } catch (Exception e) {
